@@ -24,4 +24,5 @@ concurrency:
 jobs:
   build-tools:
     name: Build host tools for linux and macos based systems
+    if: github.repository_owner == 'openwrt'
     uses: openwrt/actions-shared-workflows/.github/workflows/tools.yml@main

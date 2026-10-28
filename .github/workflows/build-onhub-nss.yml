@@ -1,0 +1,118 @@
+name: Build OnHub NSS image
+
+on:
+  push:
+    branches:
+      - 'ipq806x-nss-*'
+    paths-ignore:
+      - 'NSS-ONHUB.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build ${{ matrix.device }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      matrix:
+        device:
+          - asus_onhub
+
+    steps:
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+            /opt/hostedtoolcache/CodeQL /usr/local/share/boost
+          sudo docker image prune --all --force >/dev/null || true
+          df -h /
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential clang flex bison g++ gawk \
+            gcc-multilib g++-multilib gettext git libncurses-dev libssl-dev \
+            python3-setuptools python3-dev rsync swig unzip zlib1g-dev file \
+            wget zstd
+
+      # getver.sh counts commits since the OpenWrt "reboot", so the full
+      # history is needed for a correct rXXXXX revision
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Cache downloads
+        uses: actions/cache@v6
+        with:
+          path: dl
+          key: dl-${{ matrix.device }}-${{ hashFiles('feeds.conf.default', '.github/workflows/build-onhub-nss.yml') }}
+          restore-keys: dl-${{ matrix.device }}-
+
+      - name: Update feeds
+        run: |
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
+
+      - name: Configure
+        run: |
+          cat > .config <<EOF
+          CONFIG_TARGET_ipq806x=y
+          CONFIG_TARGET_ipq806x_chromium=y
+          CONFIG_TARGET_ipq806x_chromium_DEVICE_${{ matrix.device }}=y
+          CONFIG_PACKAGE_kmod-qca-nss-gmac=y
+          CONFIG_PACKAGE_kmod-qca-nss-drv=y
+          CONFIG_PACKAGE_kmod-qca-nss-drv-pppoe=y
+          CONFIG_PACKAGE_kmod-qca-nss-ecm-standard=y
+          CONFIG_PACKAGE_MAC80211_NSS_SUPPORT=y
+          CONFIG_PACKAGE_luci=y
+          CONFIG_BUILD_LOG=y
+          EOF
+          make defconfig
+          # fail early if defconfig dropped the NSS packages
+          for p in kmod-qca-nss-gmac kmod-qca-nss-drv kmod-qca-nss-ecm-standard; do
+            grep -q "^CONFIG_PACKAGE_$p=y" .config || { echo "::error::$p not selected"; exit 1; }
+          done
+
+      - name: Download sources
+        run: make -j8 download || make -j1 V=s download
+
+      - name: Build
+        run: |
+          make -j$(($(nproc) + 1)) || {
+            ret=$?
+            bash .github/workflows/scripts/show_build_failures.sh logs
+            exit $ret
+          }
+
+      - name: Collect images
+        run: |
+          mkdir -p out
+          cp bin/targets/ipq806x/chromium/*-${{ matrix.device }}-* out/
+          cp bin/targets/ipq806x/chromium/*.manifest out/
+          cp bin/targets/ipq806x/chromium/*.buildinfo out/ 2>/dev/null || true
+          (cd out && sha256sum * > sha256sums)
+          ls -la out
+
+      - name: Upload images
+        uses: actions/upload-artifact@v7
+        with:
+          name: openwrt-nss-${{ matrix.device }}
+          path: out/
+          retention-days: 30
+
+      - name: Upload build logs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: logs-${{ matrix.device }}
+          path: logs/
+          if-no-files-found: ignore
+          retention-days: 14

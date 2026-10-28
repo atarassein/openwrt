@@ -31,6 +31,7 @@ concurrency:
 jobs:
   build-kernels:
     name: Build all affected Kernels
+    if: github.repository_owner == 'openwrt'
     permissions:
       contents: read
       packages: read
