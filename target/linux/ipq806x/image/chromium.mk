@@ -1,6 +1,8 @@
-define Device/dsa-migration
-  DEVICE_COMPAT_VERSION := 1.1
-  DEVICE_COMPAT_MESSAGE := Config cannot be migrated from swconfig to DSA
+# NSS builds go back to swconfig (compat version 1.0), as NSS does not work
+# with the DSA tagger. Upgrading from a DSA build needs sysupgrade -n.
+define Device/nss-swconfig
+  DEVICE_COMPAT_VERSION := 1.0
+  DEVICE_COMPAT_MESSAGE := Config cannot be migrated from DSA to swconfig (NSS)
 endef
 
 define Build/cros-gpt
@@ -43,16 +45,18 @@ define Device/OnhubImage
 	# Note: Chromium/Depthcharge-based bootloaders insert a reserved-memory
 	# ramoops node into the Device Tree automatically, so we can use
 	# kmod-ramoops.
+	# kmod-qca-nss-gmac is the only Ethernet driver for the NSS DTS.
 	DEVICE_PACKAGES := ath10k-firmware-qca988x-ct e2fsprogs kmod-fs-ext4 losetup \
 			   partx-utils mkf2fs kmod-fs-f2fs \
 			   ucode kmod-google-firmware kmod-tpm-i2c-infineon \
 			   kmod-sound-soc-ipq8064-storm kmod-usb-storage \
-			   kmod-ramoops
+			   kmod-ramoops swconfig kmod-qca-nss-gmac kmod-qca-nss-drv \
+			   kmod-qca-nss-drv-pppoe kmod-qca-nss-ecm-standard
 endef
 
 define Device/asus_onhub
 	$(call Device/OnhubImage)
-	$(Device/dsa-migration)
+	$(Device/nss-swconfig)
 	DEVICE_VENDOR := ASUS
 	DEVICE_MODEL := OnHub SRT-AC1900
 	DEVICE_DTS := $$(SOC)-asus-onhub
@@ -62,7 +66,7 @@ TARGET_DEVICES += asus_onhub
 
 define Device/tplink_onhub
 	$(call Device/OnhubImage)
-	$(Device/dsa-migration)
+	$(Device/nss-swconfig)
 	DEVICE_VENDOR := TP-Link
 	DEVICE_MODEL := OnHub AC1900 Cloud Router
 	DEVICE_DTS := $$(SOC)-tplink-onhub

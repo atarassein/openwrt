@@ -48,9 +48,10 @@ ipq806x_setup_interfaces()
 		;;
 	asus,onhub|\
 	tplink,onhub)
-		ucidef_set_interfaces_lan_wan "lan1" "wan"
-		ucidef_set_network_device_conduit "lan1" "eth1"
-		ucidef_set_network_device_conduit "wan" "eth0"
+		# NSS: swconfig switch, one untagged CPU port per role
+		ucidef_set_interfaces_lan_wan "eth1" "eth0"
+		ucidef_add_switch "switch0" \
+			"1:lan" "6u@eth1" "2:wan" "0u@eth0"
 		;;
 	fortinet,fap-421e|\
 	ignitenet,ss-w2-ac2600|\
