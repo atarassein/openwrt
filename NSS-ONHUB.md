@@ -44,6 +44,18 @@ gmac2 (SGMII) = eth1 --- switch port 6 --- port 1 = LAN
 
 ## Build
 
+### On GitHub Actions
+
+`.github/workflows/build-onhub-nss.yml` builds the ASUS OnHub image for
+every push to an `ipq806x-nss-*` branch, or from "Run workflow" on the
+Actions tab. It takes about an hour. The images, manifest and checksums are
+in the `openwrt-nss-asus_onhub` artifact of the run, kept for 30 days.
+
+The upstream OpenWrt CI workflows are limited to the openwrt organisation,
+as they cannot build this branch in a fork.
+
+### Locally
+
 You need a Linux build host (Debian/Ubuntu, or WSL2) with the usual
 OpenWrt build dependencies. It does not build on plain Windows.
 
@@ -76,6 +88,13 @@ For the TP-Link model use `..._DEVICE_tplink_onhub=y` instead.
 Images are written to `bin/targets/ipq806x/chromium/`.
 
 ## Flash
+
+To try it without touching the eMMC, write
+`openwrt-ipq806x-chromium-asus_onhub-squashfs-factory.bin` to a USB stick
+(`dd`) and boot it in developer mode, the same way the first OpenWrt install
+is done. Your current eMMC install stays as it is.
+
+To install it:
 
 1. Back up anything you need. The DSA config of the official image cannot be
    carried over, so sysupgrade refuses to keep settings
@@ -116,8 +135,13 @@ Checked on a Windows host without a Linux toolchain:
 - The NSS firmware blobs are byte-identical to the ones in asvio's trees
   (`NSS.AK.11.2-9-002-R`).
 
-Not done: compiling the kernel or packages, building an image, booting it.
-The first `make` on a Linux host is the real compile test.
+Built on GitHub Actions (ubuntu-24.04): the kernel and the ASUS OnHub images
+compile, with kmod-qca-nss-gmac, -drv, -drv-pppoe, -ecm-standard and
+swconfig in the image. The optional NSS packages (qdisc, crypto, cfi, mcs,
+...) were not part of that build. The DTB in the signed FIT kernel has the
+NSS and nss-gmac nodes and no DSA switch node.
+
+Not done: booting it on an OnHub.
 
 ## Behaviour to be aware of
 
